@@ -20,4 +20,7 @@ interface ReminderDao {
 
     @Delete
     suspend fun delete(reminder: ReminderEntity)
+
+    @Query("SELECT * FROM reminders")
+    suspend fun findAll(): List<ReminderEntity>
 }

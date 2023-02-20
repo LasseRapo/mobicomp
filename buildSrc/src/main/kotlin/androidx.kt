@@ -13,8 +13,18 @@ object androidx {
         val material = "androidx.compose.material:material:$version"
     }
     object lifecycle {
-        private val version = "2.3.1"
-        val runtimeKtx = "androidx.lifecycle:lifecycle-runtime-ktx:$version"
+        private val version = "2.5.1"
+        val compose = "androidx.lifecycle:lifecycle-viewmodel-compose:$version"
+        val runtime = "androidx.lifecycle:lifecycle-runtime-ktx:$version"
+    }
+    object navigation {
+        private val version = "2.5.3"
+        val compose = "androidx.navigation:navigation-compose:$version"
+
+        object hilt {
+            private val version = "1.0.0"
+            val compose = "androidx.hilt:hilt-navigation-compose:$version"
+        }
     }
     object activity {
         private val version = "1.3.1"

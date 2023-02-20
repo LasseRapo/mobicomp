@@ -1,56 +1,36 @@
 package com.example.mobicomp.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.*
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.core.domain.entity.Reminder
 import com.example.mobicomp.R
-import com.example.mobicomp.data.entity.Category
-import com.example.mobicomp.data.entity.Reminder
-import com.example.mobicomp.ui.home.reminderCard.ReminderCardList
+import com.example.mobicomp.ui.reminder.ReminderViewModel
+import com.example.mobicomp.ui.reminder.ReminderViewState
 import com.google.accompanist.insets.systemBarsPadding
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.*
 
 @Composable
 fun Home(
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: ReminderViewModel = hiltViewModel(),
     navController: NavController
-) {
-    val viewState by viewModel.state.collectAsState()
-
-    val selectedCategory = viewState.selectedCategory
-    if (viewState.categories.isNotEmpty() && selectedCategory != null) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            HomeContent(
-                selectedCategory = selectedCategory,
-                categories = viewState.categories,
-                onCategorySelected = viewModel::onCategorySelected,
-                navController = navController
-            )
-        }
-    }
-}
-
-@Composable
-fun HomeContent(
-    selectedCategory: Category,
-    categories: List<Category>,
-    onCategorySelected: (Category) -> Unit,
-    navController: NavController,
 ) {
     val appBarColor = MaterialTheme.colors.surface.copy(alpha = 0.87f)
     Scaffold(
@@ -79,10 +59,143 @@ fun HomeContent(
                 backgroundColor = appBarColor,
                 navController = navController
             )
-            ReminderCardList(
-                modifier = Modifier.fillMaxSize()
+            ReminderList(
+                reminderViewModel = viewModel,
+                NavController = navController,
             )
 
+        }
+    }
+}
+
+@Composable
+private fun ReminderList(
+    reminderViewModel: ReminderViewModel,
+    NavController: NavController
+) {
+    // cache the reminders in a mutable list
+    val reminderList = remember { mutableStateListOf<Reminder>() }
+    reminderViewModel.loadReminders()
+
+    val reminderViewState by reminderViewModel.reminderState.collectAsState()
+    println(reminderViewState)
+
+    when (reminderViewState) {
+        is ReminderViewState.Loading -> {}
+        is ReminderViewState.Success -> {
+            reminderList.clear()
+            reminderList.addAll((reminderViewState as ReminderViewState.Success).data)
+        }
+        else -> {}
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+    LazyColumn(
+        contentPadding = PaddingValues(0.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        items(reminderList) { item ->
+            ReminderListItem(
+                reminder = item,
+                onClick = {},
+                navController = NavController,
+                reminderViewModel = reminderViewModel,
+                modifier = Modifier.fillParentMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReminderListItem(
+    reminder: Reminder,
+    onClick: () -> Unit,
+    navController: NavController,
+    reminderViewModel: ReminderViewModel,
+    modifier: Modifier = Modifier,
+) {
+    ConstraintLayout(modifier = modifier.clickable { onClick() }) {
+        val (divider, message, reminderTime, editButton, deleteButton, date) = createRefs()
+        Divider(
+            Modifier.constrainAs(divider) {
+                top.linkTo(parent.top)
+                centerHorizontallyTo(parent)
+                width = Dimension.fillToConstraints
+            }
+        )
+
+        // Message
+        Text(
+            text = reminder.message,
+            maxLines = 1,
+            style = MaterialTheme.typography.subtitle1,
+            modifier = Modifier.constrainAs(message) {
+                linkTo(
+                    start = parent.start,
+                    end = editButton.start,
+                    startMargin = 24.dp,
+                    endMargin = 16.dp,
+                    bias = 0f
+                )
+                top.linkTo(parent.top, margin = 10.dp)
+                width = Dimension.preferredWrapContent
+            }
+        )
+
+        // Date
+        Text(
+            text = reminder.reminderTime,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.caption,
+            modifier = Modifier.constrainAs(date) {
+                linkTo(
+                    start = reminderTime.end,
+                    end = editButton.start,
+                    startMargin = 8.dp,
+                    endMargin = 16.dp,
+                    bias = 0f
+                )
+                centerVerticallyTo(reminderTime)
+                top.linkTo(message.bottom, 6.dp)
+                bottom.linkTo(parent.bottom, 10.dp)
+            }
+        )
+
+        // Edit button
+        IconButton(
+            onClick = { navController.navigate(route = "editReminder/${reminder.reminderId}/${reminder.message}/${reminder.reminderTime}") },
+            modifier = Modifier
+                .size(50.dp)
+                .padding(6.dp)
+                .constrainAs(editButton) {
+                    top.linkTo(parent.top, 10.dp)
+                    bottom.linkTo(parent.bottom, 10.dp)
+                    end.linkTo(deleteButton.start, 1.dp)
+                }
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.edit_icon)
+            )
+        }
+
+        // Delete button
+        IconButton(
+            onClick = { reminderViewModel.deleteReminder(reminder) },
+            modifier = Modifier
+                .size(50.dp)
+                .padding(6.dp)
+                .constrainAs(deleteButton) {
+                    top.linkTo(parent.top, 10.dp)
+                    bottom.linkTo(parent.bottom, 10.dp)
+                    end.linkTo(parent.end)
+                }
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = ""
+            )
         }
     }
 }
@@ -119,78 +232,23 @@ private fun HomeAppBar(
 @Composable
 private fun DrawerContent(navController: NavController) {
     Box(
-        modifier = Modifier.fillMaxSize().padding(20.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp)
     ) {
         Button(
             onClick = { navController.navigate(route = "login") },
             enabled = true,
-            modifier = Modifier.fillMaxWidth().height(50.dp).align(Alignment.BottomCenter),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .align(Alignment.BottomCenter),
             shape = RoundedCornerShape(corner = CornerSize(50.dp))
         ) {
             Text(text = "Log out")
         }
     }
 
-}
-@Composable
-private fun ReminderSummary(
-    reminder: Reminder
-) {
-
-}
-
-@Composable
-private fun CategoryTabs(
-    categories: List<Category>,
-    selectedCategory: Category,
-    onCategorySelected: (Category) -> Unit
-) {
-    val selectedIndex = categories.indexOfFirst { it == selectedCategory }
-    ScrollableTabRow(
-        selectedTabIndex = selectedIndex,
-        edgePadding = 24.dp,
-        indicator = emptyTabIndicator,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        categories.forEachIndexed { index, category ->
-            Tab(
-                selected = index == selectedIndex,
-                onClick = { onCategorySelected(category) }
-            ) {
-                ChoiceChipContent(
-                    text = category.name,
-                    selected = index == selectedIndex,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChoiceChipContent(
-    text: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        color = when {
-            selected -> MaterialTheme.colors.primary.copy(alpha = 0.87f)
-            else -> MaterialTheme.colors.onSurface.copy(alpha = 0.12f)
-        },
-        contentColor = when {
-            selected -> Color.Black
-            else -> MaterialTheme.colors.onSurface
-        },
-        shape = MaterialTheme.shapes.small,
-        modifier = modifier
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.body2,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-    }
 }
 
 private val emptyTabIndicator: @Composable (List<TabPosition>) -> Unit = {}

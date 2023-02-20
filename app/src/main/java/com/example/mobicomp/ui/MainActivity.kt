@@ -9,7 +9,10 @@ import androidx.compose.ui.Modifier
 import com.example.mobicomp.ui.theme.MobicompTheme
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
+import com.example.mobicomp.navigation.MainNavigation
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,7 +29,7 @@ class MainActivity : FragmentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    App(sharedPreferences = sharedPreferences)
+                    MainNavigation(sharedPreferences = sharedPreferences)
                 }
             }
         }

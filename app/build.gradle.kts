@@ -1,6 +1,8 @@
 plugins {
     id ("com.android.application")
+    id("com.google.dagger.hilt.android")
     kotlin("android")
+    kotlin("kapt")
 }
 
 android {
@@ -50,10 +52,15 @@ android {
 }
 
 dependencies {
+    implementation(project(":core-database"))
+    implementation(project(":core-data"))
+    implementation(project(":core-domain"))
 
     implementation(androidx.core.ktx)
-    implementation(androidx.lifecycle.runtimeKtx)
+    implementation(androidx.lifecycle.compose)
+    implementation(androidx.lifecycle.runtime)
     implementation(androidx.activity.compose)
+    implementation(androidx.navigation.compose)
     implementation(androidx.compose.ui.ui)
     implementation(androidx.compose.ui.tooling)
     implementation(androidx.compose.material)
@@ -61,6 +68,11 @@ dependencies {
     implementation(androidx.room.common)
     implementation(androidx.room.runtime)
     implementation(androidx.biometric.biometric)
+
+    implementation("com.google.dagger:hilt-android:2.44.2")
+    implementation(androidx.navigation.hilt.compose)
+    kapt("com.google.dagger:hilt-android-compiler:2.44")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

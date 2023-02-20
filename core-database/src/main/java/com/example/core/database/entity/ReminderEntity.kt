@@ -7,14 +7,17 @@ import java.time.LocalDateTime
 
 @Entity(
     tableName = "reminders",
-    indices = [
-        Index("reminderId", unique = true)
-    ]
+    indices = [ Index("reminderId", unique = true) ]
 )
+
 data class ReminderEntity(
     @PrimaryKey(autoGenerate = true)
-    val reminderId: Long = 0,
-    val categoryId: Long,
-    val title: String,
-    val date: LocalDateTime
+    val reminderId: Long?,
+    val message: String,
+    val location_x: Double,
+    val location_y: Double,
+    val reminderTime: String,
+    val creationTime: LocalDateTime,
+    val creatorId: Long,
+    val reminderSeen: Long,
 )

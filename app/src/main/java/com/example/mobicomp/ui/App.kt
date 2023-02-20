@@ -10,7 +10,7 @@ import com.example.mobicomp.rememberAppState
 import com.example.mobicomp.ui.home.Home
 import com.example.mobicomp.ui.login.LoginScreen
 import com.example.mobicomp.ui.profile.Profile
-import com.example.mobicomp.ui.reminder.Reminder
+import com.example.mobicomp.ui.reminder.ReminderScreen
 
 @Composable
 fun App(
@@ -29,7 +29,7 @@ fun App(
             Home(navController = appState.navController)
         }
         composable(route = "reminder") {
-            Reminder(onBackPress = appState::navigateBack)
+            ReminderScreen(appState::navigateBack)
         }
         composable(route = "profile") {
             Profile(sharedPreferences, appState::navigateBack)
