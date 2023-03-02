@@ -41,4 +41,8 @@ object androidx {
         private const val version = "1.1.0"
         val biometric = "androidx.biometric:biometric:$version"
     }
+    object work {
+        private val version = "2.8.0"
+        val ktx = "androidx.work:work-runtime-ktx:$version"
+    }
 }

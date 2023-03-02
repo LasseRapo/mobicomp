@@ -26,6 +26,9 @@ import com.example.mobicomp.ui.reminder.ReminderViewState
 import com.google.accompanist.insets.systemBarsPadding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.painterResource
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun Home(
@@ -59,48 +62,135 @@ fun Home(
                 backgroundColor = appBarColor,
                 navController = navController
             )
-            ReminderList(
+            ReminderTab(
                 reminderViewModel = viewModel,
-                NavController = navController,
+                navController = navController
             )
+        }
+    }
+}
 
+@Composable
+private fun ReminderTab(
+    reminderViewModel: ReminderViewModel,
+    navController: NavController,
+) {
+    val viewState by reminderViewModel.reminderState.collectAsState()
+    val tabs = listOf("Occurred", "Scheduled", "All")
+    val selectedTab = remember { mutableStateOf("Occurred") }
+
+    LaunchedEffect(key1 = Unit) {
+        reminderViewModel.reloadReminders(selectedTab.value)
+    }
+
+    Column {
+        val tabIndex = tabs.indexOfFirst { it == selectedTab.value }
+        TabRow(
+            selectedTabIndex = tabIndex,
+            indicator = emptyTabIndicator,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            tabs.forEachIndexed { index, tabName ->
+                Tab(
+                    selected = index == tabIndex,
+                    onClick = {
+                        selectedTab.value = tabName
+                        reminderViewModel.reloadReminders(tabName)
+                    }
+                ) {
+                    when(tabName) {
+                        "Occurred" -> {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_baseline_checklist_24),
+                                contentDescription = ""
+                            )
+                        }
+                        "Scheduled" -> {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_baseline_access_time_24),
+                                contentDescription = ""
+                            )
+                        }
+                        "All" -> {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_baseline_layers_24),
+                                contentDescription = ""
+                            )
+                        }
+                    }
+                    ChoiceChipContent(
+                        text = tabName,
+                        selected = index == tabIndex,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+        when (viewState) {
+            is ReminderViewState.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight(Alignment.CenterVertically)
+                        .padding(vertical = 16.dp)
+                )
+            }
+            is ReminderViewState.Success -> {
+                val reminderList = (viewState as ReminderViewState.Success).data
+                val occurredReminders = reminderList.filter { it.reminderTime.isBefore(LocalDateTime.now()) }
+                val scheduledReminders = reminderList.filter { it.reminderTime.isAfter(LocalDateTime.now()) }
+
+                when (selectedTab.value) {
+                    "Occurred" -> {
+                        ReminderList(
+                            navController = navController,
+                            reminderList = occurredReminders,
+                            tabSelected = selectedTab.value,
+                            reminderViewModel = reminderViewModel
+                        )
+                    }
+                    "Scheduled" -> {
+                        ReminderList(
+                            navController = navController,
+                            reminderList = scheduledReminders,
+                            tabSelected = selectedTab.value,
+                            reminderViewModel = reminderViewModel
+                        )
+                    }
+                    "All" -> {
+                        ReminderList(
+                            navController = navController,
+                            reminderList = reminderList,
+                            tabSelected = selectedTab.value,
+                            reminderViewModel = reminderViewModel
+                        )
+                    }
+                }
+            }
+            else -> {}
         }
     }
 }
 
 @Composable
 private fun ReminderList(
+    reminderList: List<Reminder>,
+    navController: NavController,
     reminderViewModel: ReminderViewModel,
-    NavController: NavController
+    tabSelected: String
 ) {
-    // cache the reminders in a mutable list
-    val reminderList = remember { mutableStateListOf<Reminder>() }
-    reminderViewModel.loadReminders()
-
-    val reminderViewState by reminderViewModel.reminderState.collectAsState()
-    println(reminderViewState)
-
-    when (reminderViewState) {
-        is ReminderViewState.Loading -> {}
-        is ReminderViewState.Success -> {
-            reminderList.clear()
-            reminderList.addAll((reminderViewState as ReminderViewState.Success).data)
-        }
-        else -> {}
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
     LazyColumn(
         contentPadding = PaddingValues(0.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        items(reminderList) { item ->
+        items(reminderList) { reminder ->
             ReminderListItem(
-                reminder = item,
-                onClick = {},
-                navController = NavController,
-                reminderViewModel = reminderViewModel,
-                modifier = Modifier.fillParentMaxWidth()
+                reminder = reminder,
+                onClick = { reminderViewModel.setReminderAsSeen(reminder.reminderId) },
+                modifier = Modifier.fillParentMaxWidth(),
+                navController = navController,
+                tabSelected = tabSelected,
+                reminderViewModel = reminderViewModel
             )
         }
     }
@@ -113,6 +203,7 @@ private fun ReminderListItem(
     navController: NavController,
     reminderViewModel: ReminderViewModel,
     modifier: Modifier = Modifier,
+    tabSelected: String
 ) {
     ConstraintLayout(modifier = modifier.clickable { onClick() }) {
         val (divider, message, reminderTime, editButton, deleteButton, date) = createRefs()
@@ -144,7 +235,7 @@ private fun ReminderListItem(
 
         // Date
         Text(
-            text = reminder.reminderTime,
+            text = run { reminder.reminderTime.formatToString() },
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.caption,
@@ -182,7 +273,7 @@ private fun ReminderListItem(
 
         // Delete button
         IconButton(
-            onClick = { reminderViewModel.deleteReminder(reminder) },
+            onClick = { reminderViewModel.deleteReminder(reminder, tabName = tabSelected) },
             modifier = Modifier
                 .size(50.dp)
                 .padding(6.dp)
@@ -193,7 +284,7 @@ private fun ReminderListItem(
                 }
         ) {
             Icon(
-                imageVector = Icons.Filled.Check,
+                painter = painterResource(id = R.drawable.ic_baseline_delete_24),
                 contentDescription = ""
             )
         }
@@ -249,6 +340,34 @@ private fun DrawerContent(navController: NavController) {
         }
     }
 
+}
+
+@Composable
+private fun ChoiceChipContent(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        contentColor = when {
+            selected -> MaterialTheme.colors.primary
+            else -> MaterialTheme.colors.onSurface
+        },
+        shape = MaterialTheme.shapes.small,
+        modifier = modifier
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.body1,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+        )
+    }
+}
+
+private fun LocalDateTime.formatToString(): String {
+    val pattern = "uuuu-MM-dd HH:mm"
+    val formatter = DateTimeFormatter.ofPattern(pattern)
+    return this.format(formatter)
 }
 
 private val emptyTabIndicator: @Composable (List<TabPosition>) -> Unit = {}

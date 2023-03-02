@@ -11,26 +11,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.core.domain.entity.Reminder
 import com.google.accompanist.insets.systemBarsPadding
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 @Composable
 fun ReminderEditScreen(
     navController: NavController,
-    reminderId: Long?,
+    reminderId: Long,
     message: String,
-    reminderTime: String,
     viewModel: ReminderViewModel = hiltViewModel()
 ) {
     val id = remember { mutableStateOf(reminderId) }
     val reminderMessage = remember { mutableStateOf(message) }
-    val time = remember { mutableStateOf(reminderTime) }
 
     Surface {
+        val date = remember { mutableStateOf(LocalDate.now()) }
+        val time = remember { mutableStateOf(LocalTime.now()) }
         Column (
             modifier = Modifier
                 .fillMaxSize()
@@ -61,17 +65,19 @@ fun ReminderEditScreen(
                     shape = RoundedCornerShape(corner = CornerSize(25.dp))
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = time.value,
-                    onValueChange = { time.value = it },
-                    label = { Text(text = "Reminder time") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(corner = CornerSize(25.dp))
-                )
-
                 Spacer(modifier = Modifier.height(24.dp))
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Box(modifier = Modifier.weight(0.7f)) {
+                        DatePicker(context = LocalContext.current as FragmentActivity, date = date)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(modifier = Modifier.weight(0.3f)) {
+                        TimePicker(context = LocalContext.current as FragmentActivity, time = time)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(48.dp))
 
                 Button(
                     onClick = {
@@ -81,10 +87,10 @@ fun ReminderEditScreen(
                                 message = reminderMessage.value,
                                 location_x = 0.0,
                                 location_y = 0.0,
-                                reminderTime = time.value,
+                                reminderTime = date.value.atTime(time.value),
                                 creationTime = LocalDateTime.now(),
+                                reminderSeen = false,
                                 creatorId = 1,
-                                reminderSeen = 0
                             )
                         )
                         navController.popBackStack()

@@ -8,8 +8,8 @@ import javax.inject.Inject
 class ReminderDataSourceImpl @Inject constructor(
     private val reminderDao: ReminderDao
 ) : ReminderDataSource {
-    override suspend fun addReminder(reminder: Reminder) {
-        reminderDao.insertOrUpdate(reminder.toEntity())
+    override suspend fun addReminder(reminder: Reminder): Long {
+        return reminderDao.insertOrUpdate(reminder.toEntity())
     }
 
     override suspend fun editReminder(reminder: Reminder) {
@@ -20,10 +20,36 @@ class ReminderDataSourceImpl @Inject constructor(
         reminderDao.delete(reminder.toEntity())
     }
 
+    override fun loadReminder(reminderId: Long): Reminder {
+        return reminderDao.findOne(reminderId).fromEntity()
+    }
+
     override suspend fun loadReminders(): List<Reminder> {
         return reminderDao.findAll().map {
             it.fromEntity()
         }
+    }
+
+    override suspend fun loadSeenReminders(seen: Boolean): List<Reminder> {
+        return reminderDao.loadSeenReminders(seen)
+            .map {
+                it.fromEntity()
+            }
+    }
+
+    override suspend fun setReminderSeen(reminderId: Long, seen: Boolean) {
+        val oldReminder = loadReminder(reminderId)
+        val newReminder = Reminder(
+            reminderId = reminderId,
+            message = oldReminder.message,
+            location_x = oldReminder.location_x,
+            location_y = oldReminder.location_y,
+            reminderTime = oldReminder.reminderTime,
+            creationTime = oldReminder.creationTime,
+            creatorId = oldReminder.creatorId,
+            reminderSeen = seen
+        )
+        reminderDao.update(newReminder.toEntity())
     }
 
     private fun Reminder.toEntity() = ReminderEntity(
@@ -34,7 +60,7 @@ class ReminderDataSourceImpl @Inject constructor(
         reminderTime = this.reminderTime,
         creationTime = this.creationTime,
         creatorId = this.creatorId,
-        reminderSeen = this.reminderSeen,
+        reminderSeen = this.reminderSeen
     )
 
     private fun ReminderEntity.fromEntity() = Reminder(
@@ -45,6 +71,6 @@ class ReminderDataSourceImpl @Inject constructor(
         reminderTime = this.reminderTime,
         creationTime = this.creationTime,
         creatorId = this.creatorId,
-        reminderSeen = this.reminderSeen,
+        reminderSeen = this.reminderSeen
     )
 }

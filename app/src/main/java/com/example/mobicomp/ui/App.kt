@@ -29,10 +29,10 @@ fun App(
             Home(navController = appState.navController)
         }
         composable(route = "reminder") {
-            ReminderScreen(appState::navigateBack)
+            ReminderScreen(navController = appState.navController)
         }
         composable(route = "profile") {
-            Profile(sharedPreferences, appState::navigateBack)
+            Profile(sharedPreferences, navController = appState.navController)
         }
     }
 }

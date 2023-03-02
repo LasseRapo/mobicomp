@@ -68,6 +68,7 @@ dependencies {
     implementation(androidx.room.common)
     implementation(androidx.room.runtime)
     implementation(androidx.biometric.biometric)
+    implementation(androidx.work.ktx)
 
     implementation("com.google.dagger:hilt-android:2.44.2")
     implementation(androidx.navigation.hilt.compose)

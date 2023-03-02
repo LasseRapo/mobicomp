@@ -12,17 +12,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 
 @Composable
 fun Profile(
     sharedPreferences: SharedPreferences,
-    onBackPress: () -> Unit
+    navController: NavController
 ) {
     val username = sharedPreferences.getString("username", "")
     val password = sharedPreferences.getString("password", "")
 
     Surface() {
-        IconButton(onClick = onBackPress, modifier = Modifier.padding(16.dp)) {
+        IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.padding(16.dp)) {
             Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
         }
 
