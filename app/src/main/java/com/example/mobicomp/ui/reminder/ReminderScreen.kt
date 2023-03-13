@@ -5,6 +5,8 @@ import android.app.TimePickerDialog
 import android.content.Context
 import android.widget.DatePicker
 import android.widget.TimePicker
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.*
@@ -31,6 +33,14 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlin.random.Random
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.graphics.Color
+import com.example.mobicomp.Graph
+import com.google.android.gms.maps.model.LatLng
 
 @Composable
 fun ReminderScreen(
@@ -39,7 +49,20 @@ fun ReminderScreen(
 ) {
 
     val message = remember {mutableStateOf("")}
-    val reminderTime = remember {mutableStateOf("")}
+    val latitude = remember {mutableStateOf<Float?>(null)}
+    val longitude = remember {mutableStateOf<Float?>(null)}
+    val timeEnabled = remember {mutableStateOf(true)}
+
+    val locationData = navController.currentBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("location_data")?.value
+    if (locationData != null) {
+        latitude.value = locationData.latitude.toFloat()
+        longitude.value = locationData.longitude.toFloat()
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {}
+    )
 
     Surface {
         Column(
@@ -75,14 +98,35 @@ fun ReminderScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Box(modifier = Modifier.weight(0.7f)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(0.4f)) {
                         DatePicker(context = LocalContext.current as FragmentActivity, date = date)
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Box(modifier = Modifier.weight(0.3f)) {
                         TimePicker(context = LocalContext.current as FragmentActivity, time = time)
                     }
+                    Checkbox(
+                        checked = timeEnabled.value,
+                        onCheckedChange = { checked -> timeEnabled.value = checked },
+                        modifier = Modifier.padding(10.dp).weight(0.1f),
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color.Green
+                        )
+                    )
+                    Text(text = "Use time")
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                        LocationPicker(
+                            context = LocalContext.current as FragmentActivity,
+                            navController = navController,
+                            launcher = launcher,
+                            latitude = latitude,
+                            longitude = longitude
+                        )
                 }
 
                 Spacer(modifier = Modifier.height(48.dp))
@@ -92,11 +136,12 @@ fun ReminderScreen(
                         val id = Random.nextLong()
                         viewModel.saveReminder(
                             navController = navController,
+                            useTime = timeEnabled.value,
                             reminder = Reminder(
                                 reminderId = id,
                                 message = message.value,
-                                location_x = 0.0,
-                                location_y = 0.0,
+                                location_x = latitude.value,
+                                location_y = longitude.value,
                                 reminderTime = date.value.atTime(time.value),
                                 creationTime = LocalDateTime.now(),
                                 reminderSeen = false,
@@ -165,4 +210,86 @@ fun TimePicker( context: Context, time: MutableState<LocalTime> ) {
         enabled = false,
         shape = RoundedCornerShape(corner = CornerSize(50.dp))
     )
+}
+
+@Composable
+fun LocationPicker(
+    context: Context,
+    navController: NavController,
+    launcher: ActivityResultLauncher<String>,
+    latitude: MutableState<Float?>,
+    longitude: MutableState<Float?>
+) {
+    OutlinedButton(
+        shape = RoundedCornerShape(corner = CornerSize(50.dp)),
+        modifier = if (latitude.value != null && longitude.value != null) {
+            Modifier
+                .fillMaxWidth(0.5f)
+                .size(55.dp)
+                .height(58.dp)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .size(55.dp)
+                .height(58.dp)
+        },
+        onClick = {
+            requestPermission(
+                context = context,
+                permission = Manifest.permission.ACCESS_FINE_LOCATION,
+                requestPermission = {
+                    launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            )
+            requestPermission(
+                context = context,
+                permission = Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                requestPermission = {
+                    launcher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                }
+            ).apply {
+                navController.navigate("map")
+            }
+        }
+    ) {
+        Text(
+            text = if (latitude.value != null && longitude.value != null) {
+                String.format(
+                    Locale.getDefault(),
+                    "Lat: %1$.2f\r\nLng: %2$.2f",
+                    latitude.value,
+                    longitude.value
+                )
+            } else {
+                "Set location"
+            }
+        )
+    }
+    if (latitude.value != null && longitude.value != null) {
+        OutlinedButton(
+            onClick = {
+                latitude.value = null
+                longitude.value = null
+                Toast.makeText(Graph.appContext, "Cleared location", Toast.LENGTH_SHORT).show()
+            },
+            shape = RoundedCornerShape(corner = CornerSize(50.dp)),
+            modifier = Modifier.fillMaxWidth(1f).size(55.dp).height(58.dp)
+        ) {
+            Text(text = "Clear location")
+        }
+    }
+}
+
+private fun requestPermission(
+    context: Context,
+    permission: String,
+    requestPermission: () -> Unit
+) {
+    if (ContextCompat.checkSelfPermission(
+            context,
+            permission
+        ) != PackageManager.PERMISSION_GRANTED
+    ) {
+        requestPermission()
+    }
 }

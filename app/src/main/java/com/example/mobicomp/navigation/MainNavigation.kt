@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.mobicomp.ui.home.Home
 import com.example.mobicomp.ui.login.LoginScreen
+import com.example.mobicomp.ui.maps.ReminderLocation
 import com.example.mobicomp.ui.profile.Profile
 import com.example.mobicomp.ui.reminder.ReminderEditScreen
 import com.example.mobicomp.ui.reminder.ReminderScreen
@@ -54,6 +55,9 @@ fun MainNavigation(
                     message
                 )
             }
+        }
+        composable(route = "map") {
+            ReminderLocation(navController = navController)
         }
     }
 }

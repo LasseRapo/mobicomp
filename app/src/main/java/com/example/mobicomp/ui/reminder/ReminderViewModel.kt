@@ -1,6 +1,18 @@
 package com.example.mobicomp.ui.reminder
 
+import android.Manifest
+import android.content.BroadcastReceiver
+import android.app.PendingIntent
+import android.content.ContentValues.TAG
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
+import android.os.Build
+import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
@@ -10,7 +22,9 @@ import androidx.work.workDataOf
 import com.example.core.domain.repository.ReminderRepository
 import com.example.core.domain.entity.Reminder
 import com.example.mobicomp.Graph
+import com.example.mobicomp.utils.NotificationWorker
 import com.example.mobicomp.utils.ReminderWorker
+import com.google.android.gms.location.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,19 +46,27 @@ class ReminderViewModel @Inject constructor(
         get() = _listState
     private val _reminderViewState = MutableStateFlow<ReminderViewState>(ReminderViewState.Loading)
     val reminderState: StateFlow<ReminderViewState> = _reminderViewState
+    private val geofencingClient = LocationServices.getGeofencingClient(Graph.appContext)
+
+    val radius = 200.0f
 
     init {
         loadReminders()
     }
 
-    fun saveReminder(navController: NavController, reminder: Reminder) {
+    fun saveReminder(navController: NavController, reminder: Reminder, useTime: Boolean) {
         viewModelScope.launch {
             val id = reminderRepository.addReminder(reminder)
 
             if (reminder.reminderTime.isBefore(LocalDateTime.now())) {
                 reminderRepository.setReminderSeen(id, true)
             }
-            setReminder(reminder)
+            if (reminder.location_x != null && reminder.location_y != null) {
+                setLocationReminder(reminder)
+            }
+            if (useTime) {
+                setTimeReminder(reminder)
+            }
             delay(80)
             navController.popBackStack()
         }
@@ -56,10 +78,10 @@ class ReminderViewModel @Inject constructor(
         }
     }
 
-    fun deleteReminder(reminder: Reminder, tabName: String) {
+    fun deleteReminder(reminder: Reminder, tabName: String, location: Location?) {
         viewModelScope.launch {
             reminderRepository.deleteReminder(reminder)
-            reloadReminders(tabName)
+            reloadReminders(tabName, location)
         }
     }
 
@@ -77,31 +99,102 @@ class ReminderViewModel @Inject constructor(
         }
     }
 
-    private suspend fun _reloadReminders(all: Boolean) {
+    private suspend fun _reloadReminders(all: Boolean, location: Location?) {
         val list: List<Reminder> = if (all) {
             reminderRepository.loadReminders()
         } else {
             reminderRepository.loadSeenReminders(false)
         }
-        val occurredList: List<Reminder> = list.filter { it.reminderTime.isBefore(LocalDateTime.now()) }
-        val listButSorted: List<Reminder> = list.sortedByDescending { it.reminderTime }
+        val filteredList = if (location != null) {
+            list.filter { reminder ->
+                reminder.location_y != null && reminder.location_x != null &&
+                        inRadius(reminder.location_x, reminder.location_y, location, radius) ||
+                        (reminder.location_y == null && reminder.location_x == null)
+            }
+        } else if (all) {
+            list
+        } else {
+            list.filter { reminder ->
+                reminder.location_y == null && reminder.location_x == null
+            }
+        }
+        val listButSorted: List<Reminder> = filteredList.sortedByDescending { it.reminderTime }
         _reminderViewState.value = ReminderViewState.Success(listButSorted)
         _listState.value = ReminderListState(
             reminders = listButSorted,
             tabs = listOf("Occurred", "Scheduled", "All")
         )
-        _listState.value = _listState.value.copy(reminders = occurredList, tabs = listOf("Occurred", "Scheduled", "All"))
     }
 
-    fun reloadReminders(tabName: String) {
+    fun reloadReminders(tabName: String, location: Location?) {
         if (tabName == "Occurred" || tabName == "Scheduled" || tabName == "All") {
             viewModelScope.launch {
-                _reloadReminders(true)
+                _reloadReminders(true, location)
             }
         }
     }
 
-    private fun setReminder(reminder: Reminder) {
+    private fun inRadius(reminderLatitude: Float?, reminderLongitude: Float?, location: Location, radius: Float): Boolean {
+        if (reminderLatitude == null || reminderLongitude == null) {
+            return false
+        }
+        val reminderLocation = Location("")
+        reminderLocation.latitude = reminderLatitude.toDouble()
+        reminderLocation.longitude = reminderLongitude.toDouble()
+        val distance = location.distanceTo(reminderLocation)
+        return distance <= radius
+    }
+
+    private fun setLocationReminder(reminder: Reminder) {
+        val geofence = Geofence.Builder()
+            .setRequestId(reminder.message)
+            .setCircularRegion(reminder.location_x!!.toDouble(), reminder.location_y!!.toDouble(), radius)
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_DWELL)
+            .setExpirationDuration(Geofence.NEVER_EXPIRE)
+            .setLoiteringDelay(2)
+            .setNotificationResponsiveness(0)
+            .build()
+
+        val geofencingRequest = GeofencingRequest.Builder()
+            .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
+            .addGeofence(geofence)
+            .build()
+
+        val intent = Intent(Graph.appContext, GeofenceBroadcastReceiver::class.java).apply{
+            putExtra("reminder_message", reminder.message)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            Graph.appContext,
+            0,
+            intent,
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        if (ActivityCompat.checkSelfPermission(
+                Graph.appContext,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        if (ActivityCompat.checkSelfPermission(
+                Graph.appContext,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        geofencingClient.addGeofences(geofencingRequest, pendingIntent).run {
+            addOnSuccessListener {
+                Toast.makeText(Graph.appContext, "Added reminder with geofence", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun setTimeReminder(reminder: Reminder) {
         val timeZoneId = ZoneId.systemDefault()
         val timeNow = Calendar.getInstance()
         val reminderDate = Date.from(reminder.reminderTime.atZone(timeZoneId).toInstant())
@@ -125,7 +218,6 @@ class ReminderViewModel @Inject constructor(
         }
     }
 
-
     init {
         _loaded = false
     }
@@ -135,3 +227,34 @@ data class ReminderListState(
     val reminders: List<Reminder> = emptyList(),
     val tabs: List<String> = emptyList()
 )
+
+class GeofenceBroadcastReceiver : BroadcastReceiver() {
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onReceive(context: Context?, intent: Intent?) {
+        val geofencingEvent = GeofencingEvent.fromIntent(intent)
+        if (geofencingEvent.hasError()) {
+            val errorMessage = GeofenceStatusCodes.getStatusCodeString(geofencingEvent.errorCode)
+            Log.e(TAG, errorMessage)
+            return
+        }
+        val reminderMessage = intent!!.getStringExtra("reminder_message")
+        if (reminderMessage != null) {
+            val notificationWorker = NotificationWorker(Graph.appContext)
+
+            notificationWorker.createNotification(
+                "at your location",
+                reminderMessage
+            )
+            val geofencingClient = LocationServices.getGeofencingClient(Graph.appContext)
+            geofencingClient.removeGeofences(listOf(reminderMessage)).run {
+                addOnSuccessListener {
+                    Log.d(TAG, "Removed geofence: $reminderMessage")
+                }
+                addOnFailureListener {
+                    Log.e(TAG, "Failed to remove geofence: $reminderMessage")
+                }
+            }
+        }
+
+    }
+}

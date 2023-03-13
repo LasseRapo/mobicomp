@@ -1,5 +1,7 @@
 package com.example.mobicomp.ui.reminder
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.core.domain.entity.Reminder
 import com.google.accompanist.insets.systemBarsPadding
+import com.google.android.gms.maps.model.LatLng
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -31,6 +34,19 @@ fun ReminderEditScreen(
 ) {
     val id = remember { mutableStateOf(reminderId) }
     val reminderMessage = remember { mutableStateOf(message) }
+    val latitude = remember {mutableStateOf<Float?>(null)}
+    val longitude = remember {mutableStateOf<Float?>(null)}
+
+    val locationData = navController.currentBackStackEntry?.savedStateHandle?.getLiveData<LatLng>("location_data")?.value
+    if (locationData != null) {
+        latitude.value = locationData.latitude.toFloat()
+        longitude.value = locationData.longitude.toFloat()
+    }
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {}
+    )
 
     Surface {
         val date = remember { mutableStateOf(LocalDate.now()) }
@@ -76,6 +92,17 @@ fun ReminderEditScreen(
                         TimePicker(context = LocalContext.current as FragmentActivity, time = time)
                     }
                 }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LocationPicker(
+                        context = LocalContext.current as FragmentActivity,
+                        navController = navController,
+                        launcher = launcher,
+                        latitude = latitude,
+                        longitude = longitude
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(48.dp))
 
@@ -85,8 +112,8 @@ fun ReminderEditScreen(
                             Reminder(
                                 reminderId = id.value,
                                 message = reminderMessage.value,
-                                location_x = 0.0,
-                                location_y = 0.0,
+                                location_x = latitude.value,
+                                location_y = longitude.value,
                                 reminderTime = date.value.atTime(time.value),
                                 creationTime = LocalDateTime.now(),
                                 reminderSeen = false,

@@ -14,8 +14,8 @@ data class ReminderEntity(
     @PrimaryKey(autoGenerate = true)
     val reminderId: Long = 0,
     val message: String,
-    val location_x: Double,
-    val location_y: Double,
+    val location_x: Float?,
+    val location_y: Float?,
     val reminderTime: LocalDateTime,
     val creationTime: LocalDateTime,
     val creatorId: Long,

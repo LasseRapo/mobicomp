@@ -3,6 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
     <application
         android:name=".MobiCompApp"
         android:allowBackup="false"
@@ -14,7 +17,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Mobicomp"
-        tools:targetApi="31">
+        tools:targetApi="s">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="API KEY HERE"/>
+
+        <receiver android:name="com.example.mobicomp.ui.reminder.GeofenceBroadcastReceiver">
+        </receiver>
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

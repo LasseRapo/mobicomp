@@ -1,5 +1,7 @@
 package com.example.mobicomp.ui.home
 
+import android.location.Location
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material.Text
 import androidx.compose.foundation.layout.*
@@ -27,14 +29,27 @@ import com.google.accompanist.insets.systemBarsPadding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.sp
+import com.google.android.gms.maps.model.LatLng
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.*
 
 @Composable
 fun Home(
     viewModel: ReminderViewModel = hiltViewModel(),
     navController: NavController
 ) {
+    val latitudeValue = remember { mutableStateOf<Float?>(65.03053F) }
+    val longitudeValue = remember { mutableStateOf<Float?>(25.475655F) }
+    val latlng = navController.currentBackStackEntry?.savedStateHandle?.get<LatLng>("location_data")
+
+    if (latlng != null) {
+        latitudeValue.value = latlng.latitude.toFloat()
+        longitudeValue.value = latlng.longitude.toFloat()
+        navController.currentBackStackEntry?.savedStateHandle?.set("location_data", null)
+    }
+
     val appBarColor = MaterialTheme.colors.surface.copy(alpha = 0.87f)
     Scaffold(
         drawerContent = { DrawerContent(navController = navController) },
@@ -62,25 +77,78 @@ fun Home(
                 backgroundColor = appBarColor,
                 navController = navController
             )
+            VirtualLocationButton(
+                backgroundColor = appBarColor,
+                latitude = latitudeValue,
+                longitude = longitudeValue,
+                navController = navController
+            )
             ReminderTab(
                 reminderViewModel = viewModel,
-                navController = navController
+                navController = navController,
+                latitude = latitudeValue.value,
+                longitude = longitudeValue.value
             )
         }
     }
 }
 
 @Composable
+private fun VirtualLocationButton(
+    backgroundColor: Color,
+    latitude: MutableState<Float?>,
+    longitude: MutableState<Float?>,
+    navController: NavController
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.background(backgroundColor).padding(16.dp)
+    ) {
+        IconButton(
+            onClick = { navController.navigate(route = "map") },
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(imageVector = Icons.Filled.LocationOn, contentDescription = "Virtual location")
+        }
+        Text(
+            text = if (latitude.value != null && longitude.value != null) {
+                String.format(
+                    Locale.getDefault(),
+                    "Lat: %1$.2f, Lng: %2$.2f",
+                    latitude.value,
+                    longitude.value
+                )
+            } else {
+                "Virtual location"
+            },
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colors.primary
+        )
+    }
+}
+
+@Composable
 private fun ReminderTab(
-    reminderViewModel: ReminderViewModel,
+    reminderViewModel: ReminderViewModel = hiltViewModel(),
     navController: NavController,
+    latitude: Float?,
+    longitude: Float?
 ) {
     val viewState by reminderViewModel.reminderState.collectAsState()
     val tabs = listOf("Occurred", "Scheduled", "All")
     val selectedTab = remember { mutableStateOf("Occurred") }
+    val location = if (latitude != null && longitude != null) {
+        Location("").apply {
+            this.latitude = latitude.toDouble()
+            this.longitude = longitude.toDouble()
+        }
+    } else {
+        null
+    }
 
     LaunchedEffect(key1 = Unit) {
-        reminderViewModel.reloadReminders(selectedTab.value)
+        reminderViewModel.reloadReminders(selectedTab.value, location)
     }
 
     Column {
@@ -95,7 +163,7 @@ private fun ReminderTab(
                     selected = index == tabIndex,
                     onClick = {
                         selectedTab.value = tabName
-                        reminderViewModel.reloadReminders(tabName)
+                        reminderViewModel.reloadReminders(tabName, location)
                     }
                 ) {
                     when(tabName) {
@@ -146,7 +214,8 @@ private fun ReminderTab(
                             navController = navController,
                             reminderList = occurredReminders,
                             tabSelected = selectedTab.value,
-                            reminderViewModel = reminderViewModel
+                            reminderViewModel = reminderViewModel,
+                            location = location
                         )
                     }
                     "Scheduled" -> {
@@ -154,7 +223,8 @@ private fun ReminderTab(
                             navController = navController,
                             reminderList = scheduledReminders,
                             tabSelected = selectedTab.value,
-                            reminderViewModel = reminderViewModel
+                            reminderViewModel = reminderViewModel,
+                            location = location
                         )
                     }
                     "All" -> {
@@ -162,7 +232,8 @@ private fun ReminderTab(
                             navController = navController,
                             reminderList = reminderList,
                             tabSelected = selectedTab.value,
-                            reminderViewModel = reminderViewModel
+                            reminderViewModel = reminderViewModel,
+                            location = location
                         )
                     }
                 }
@@ -177,21 +248,23 @@ private fun ReminderList(
     reminderList: List<Reminder>,
     navController: NavController,
     reminderViewModel: ReminderViewModel,
-    tabSelected: String
+    tabSelected: String,
+    location: Location?
 ) {
     LazyColumn(
         contentPadding = PaddingValues(0.dp),
         verticalArrangement = Arrangement.Center
     ) {
         items(reminderList) { reminder ->
-            ReminderListItem(
-                reminder = reminder,
-                onClick = { reminderViewModel.setReminderAsSeen(reminder.reminderId) },
-                modifier = Modifier.fillParentMaxWidth(),
-                navController = navController,
-                tabSelected = tabSelected,
-                reminderViewModel = reminderViewModel
-            )
+                ReminderListItem(
+                    reminder = reminder,
+                    onClick = { reminderViewModel.setReminderAsSeen(reminder.reminderId) },
+                    modifier = Modifier.fillParentMaxWidth(),
+                    navController = navController,
+                    tabSelected = tabSelected,
+                    reminderViewModel = reminderViewModel,
+                    location = location
+                )
         }
     }
 }
@@ -203,7 +276,8 @@ private fun ReminderListItem(
     navController: NavController,
     reminderViewModel: ReminderViewModel,
     modifier: Modifier = Modifier,
-    tabSelected: String
+    tabSelected: String,
+    location: Location?
 ) {
     ConstraintLayout(modifier = modifier.clickable { onClick() }) {
         val (divider, message, reminderTime, editButton, deleteButton, date) = createRefs()
@@ -273,7 +347,7 @@ private fun ReminderListItem(
 
         // Delete button
         IconButton(
-            onClick = { reminderViewModel.deleteReminder(reminder, tabName = tabSelected) },
+            onClick = { reminderViewModel.deleteReminder(reminder, tabName = tabSelected, location) },
             modifier = Modifier
                 .size(50.dp)
                 .padding(6.dp)
@@ -314,7 +388,6 @@ private fun HomeAppBar(
             }
             IconButton(onClick = { navController.navigate(route = "profile") }) {
                 Icon(imageVector = Icons.Filled.AccountCircle, contentDescription = stringResource(R.string.account))
-
             }
         }
     )

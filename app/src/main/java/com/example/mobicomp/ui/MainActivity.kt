@@ -10,6 +10,7 @@ import com.example.mobicomp.ui.theme.MobicompTheme
 import android.content.Context
 import androidx.fragment.app.FragmentActivity
 import com.example.mobicomp.navigation.MainNavigation
+import com.google.android.gms.location.LocationRequest
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -21,6 +22,12 @@ class MainActivity : FragmentActivity() {
 
         editor.putString("username", "User123") //Username: User123
         editor.putString("password", "Pass123") //Password: Pass123
+
+        LocationRequest.create().apply {
+            interval = 10000
+            fastestInterval = 2000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
 
         editor.apply()
         setContent {
